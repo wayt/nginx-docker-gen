@@ -1,0 +1,41 @@
+# HTTP 1.1 support
+proxy_http_version 1.1;
+proxy_buffering off;
+proxy_set_header Host $http_host;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+server {
+    server_name _;
+    listen 80;
+    access_log /var/log/nginx/access.log;
+    return 503;
+}
+
+{{ range $host, $containers := groupByLabel $ "lb.vhost" }}
+
+upstream {{ $host }} {
+    {{ range $container := $containers }}
+        {{ $addrLen := len $container.Addresses }}
+        {{ if eq $addrLen 1 }}
+            {{ $address := index $container.Addresses 0 }}
+    server {{ $address.HostIP }}:{{ $address.HostPort }};
+        {{ else }}
+            {{ $port := coalesce $container.Labels.lb.servicePort "80" }}
+            {{ $address := where $container.Addresses "Port" $port | first }}
+    server {{ $address.HostIP }}:{{ $address.HostPort }};
+        {{ end }}
+    {{ end }}
+}
+
+server {
+    server_name {{ $host }};
+    listen 80;
+    access_log /var/log/nginx/{{ $host }}-access.log;
+
+    location / {
+        proxy_pass http://{{ trim $host }};
+    }
+}
+{{ end }}

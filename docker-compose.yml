@@ -1,0 +1,7 @@
+whoami:
+  image: jwilder/whoami
+  ports:
+  - "8000"
+  labels:
+  - "lb.vhost=whoami"
+  - "lb.servicePort=8000"
